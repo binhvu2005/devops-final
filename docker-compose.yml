@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rikkei_postgres
+    environment:
+      POSTGRES_DB: rikkei_prod
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rikkei_network
+    restart: unless-stopped
+    # Không expose port 5432 ra ngoài, chỉ kết nối nội bộ
+    # ports:
+    #   - "5432:5432"
+
+  # Backend Service (Spring Boot)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rikkei_backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rikkei_prod
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      - postgres
+    networks:
+      - rikkei_network
+    restart: unless-stopped
+    # Port chỉ expose nội bộ cho Nginx
+    expose:
+      - "8080"
+
+  # Frontend Service (ReactJS)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rikkei_frontend
+    networks:
+      - rikkei_network
+    restart: unless-stopped
+    # Port chỉ expose nội bộ cho Nginx
+    expose:
+      - "80"
+
+  # Nginx Reverse Proxy
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: rikkei_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - rikkei_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  rikkei_network:
+    driver: bridge
