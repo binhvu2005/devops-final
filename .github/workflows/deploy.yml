@@ -1,41 +1,54 @@
-name: Deploy Fullstack App
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+  DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+          username: ${{ env.DOCKER_HUB_USERNAME }}
+          password: ${{ env.DOCKER_HUB_TOKEN }}
 
-      - name: Build and Push Images
+      - name: Build and push Frontend image
         run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/frontend-009:latest ./frontend
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/backend-009:latest ./backend
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/frontend-009:latest
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/backend-009:latest
+          docker build -t ${{ env.DOCKER_HUB_USERNAME }}/frontend-009:latest ./frontend
+          docker push ${{ env.DOCKER_HUB_USERNAME }}/frontend-009:latest
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: SSH and Deploy
-        uses: appleboy/ssh-action@master
-        with:
-          host: 3.27.8.77
-          username: ubuntu
-          key: ${{ secrets.SERVER_KEY }}
-          script: |
+      - name: Build and push Backend image
+        run: |
+          docker build -t ${{ env.DOCKER_HUB_USERNAME }}/backend-009:latest ./backend
+          docker push ${{ env.DOCKER_HUB_USERNAME }}/backend-009:latest
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ env.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << 'EOF'
             mkdir -p ~/HN_KS25_VuThanhBinh_009
-            cd ~/HN_KS25_VuThanhBinh_009
+            cd ~/HN_KS25_VuThanhBinh_009 || exit
             docker-compose -f docker-compose.prod.yml pull
             docker-compose -f docker-compose.prod.yml up -d
             docker image prune -f
+          EOF
