@@ -5,60 +5,41 @@ version: '3.8'
 
 services:
   # PostgreSQL Database
-  postgres:
+  db:
     image: postgres:15-alpine
-    container_name: rikkei_postgres
+    container_name: postgres_db
     environment:
       POSTGRES_DB: rikkei_prod
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: user_rikkei
+      POSTGRES_PASSWORD: password_123
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - rikkei_network
-    restart: unless-stopped
 
   # Backend Service (Spring Boot)
   backend:
-    image: YOUR_DOCKERHUB_USERNAME/rikkei-backend:latest
-    container_name: rikkei_backend
+    image: YOUR_DOCKERHUB_USERNAME/backend-009:latest
+    container_name: spring_backend
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rikkei_prod
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/rikkei_prod
+      SPRING_DATASOURCE_USERNAME: user_rikkei
+      SPRING_DATASOURCE_PASSWORD: password_123
     depends_on:
-      - postgres
+      - db
     networks:
       - rikkei_network
-    restart: unless-stopped
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
 
   # Frontend Service (ReactJS)
   frontend:
-    image: YOUR_DOCKERHUB_USERNAME/rikkei-frontend:latest
-    container_name: rikkei_frontend
+    image: YOUR_DOCKERHUB_USERNAME/frontend-009:latest
+    container_name: react_frontend
     networks:
       - rikkei_network
-    restart: unless-stopped
-    expose:
-      - "80"
-
-  # Nginx Reverse Proxy
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: rikkei_nginx
     ports:
       - "80:80"
-      - "443:443"
-    depends_on:
-      - frontend
-      - backend
-    networks:
-      - rikkei_network
-    restart: unless-stopped
 
 volumes:
   postgres_data:
